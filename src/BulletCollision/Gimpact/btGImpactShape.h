@@ -73,6 +73,7 @@ public:
 class btGImpactShapeInterface : public btConcaveShape
 {
 protected:
+	btVector3 m_BoxSetScaling;
 	btAABB m_localAABB;
 	bool m_needs_update;
 	btVector3 localScaling;
@@ -96,6 +97,25 @@ protected:
 		m_localAABB = m_box_set.getGlobalBox();
 	}
 
+	virtual void calcLocalAABBAfterScaling()
+	{
+		lockChildShapes();
+		if (m_box_set.getNodeCount() == 0)
+		{
+			m_box_set.buildSet();
+		}
+		else
+		{
+			btVector3 localScaling = getLocalScaling();
+			btVector3 relativeScaling = localScaling / m_BoxSetScaling;
+			m_box_set.updateAfterScaling(relativeScaling);
+		}
+		unlockChildShapes();
+
+		m_BoxSetScaling = getLocalScaling();
+		m_localAABB = m_box_set.getGlobalBox();
+	}
+
 public:
 	btGImpactShapeInterface()
 	{
@@ -103,6 +123,7 @@ public:
 		m_localAABB.invalidate();
 		m_needs_update = true;
 		localScaling.setValue(1.f, 1.f, 1.f);
+		m_BoxSetScaling.setValue(1.0f, 1.0f, 1.0f);
 	}
 
 	//! performs refit operation
@@ -116,6 +137,13 @@ public:
 	{
 		if (!m_needs_update) return;
 		calcLocalAABB();
+		m_needs_update = false;
+	}
+
+	SIMD_FORCE_INLINE void updateBoundAfterScaling()
+	{
+		if (!m_needs_update) return;
+		calcLocalAABBAfterScaling();
 		m_needs_update = false;
 	}
 
@@ -870,6 +898,17 @@ protected:
 		while (i--)
 		{
 			m_mesh_parts[i]->updateBound();
+			m_localAABB.merge(m_mesh_parts[i]->getLocalBox());
+		}
+	}
+
+	virtual void calcLocalAABBAfterScaling()
+	{
+		m_localAABB.invalidate();
+		int i = m_mesh_parts.size();
+		while (i--)
+		{
+			m_mesh_parts[i]->updateBoundAfterScaling();
 			m_localAABB.merge(m_mesh_parts[i]->getLocalBox());
 		}
 	}
